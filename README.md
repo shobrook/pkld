@@ -15,7 +15,7 @@ def my_slow_fn(input):
 - Thread-safe
 - Supports asynchronous functions
 - Supports in-memory caching in addition to on-disk
-- Uses Python's built-in `pickle` module to serialize function outputs
+- Uses Python's built-in `pickle` module under the hood
 
 ## Installation
 
@@ -94,4 +94,4 @@ Only certain functions can and should be marinated:
 
 ## Authors
 
-Created by [Paul Bogdan](https://github.com/paulcbogdan) and [Jonathan Shobrook](https://github.com/shobrook) to make our lives easier at the Dolcos Lab.
+Created by [Paul Bogdan](https://github.com/paulcbogdan) and [Jonathan Shobrook](https://github.com/shobrook) to make our lives easier when iterating on data/training pipelines.
