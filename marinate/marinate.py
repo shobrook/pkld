@@ -1,5 +1,6 @@
 # Standard library
 import os
+import pickle
 from functools import cache
 from pathlib import Path
 from typing import Literal, Optional
@@ -65,8 +66,12 @@ def marinate(
 
             full_fp = Path(cache_dir) / func_fp
             if os.path.isfile(full_fp) and not overwrite:
-                print_log(f"Using cached output for {f.__name__} in {full_fp}")
-                return get_cached_output(full_fp)
+                try:
+                    print_log(f"Using cached output for {f.__name__} in {full_fp}")
+                    return get_cached_output(full_fp)
+                except (pickle.UnpicklingError, MemoryError, EOFError) as e:
+                    print_log(f"\tRedoing function, error loading cache file {full_fp}: {e}")
+
             full_fp.parent.mkdir(parents=True, exist_ok=True)
 
 
