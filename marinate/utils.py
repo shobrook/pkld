@@ -8,40 +8,20 @@ import inspect
 import warnings
 
 
+#########
+# HELPERS
+#########
+
+
 YELLOW = "\033[93m"
 RESET = "\033[0m"
-CACHE_DIR = ".marinate" # TODO: change per final name
 
-
-
-def get_file_path(
-    fn_file: str,
-    cache_key: Optional[str] = None,
-    cache_file: Optional[str] = None,
-    cache_dir: Optional[str] = None,
-) -> str:
-    file_path = cache_file or cache_key
-    file_path = f"{file_path}.pkl" if not file_path.endswith(".pkl") else file_path
-
-    if cache_dir:
-        dir_path = cache_dir
-    else:
-        dir_path = os.path.dirname(fn_file)
-        dir_path = os.path.join(dir_path, CACHE_DIR)
-
-    if cache_file:
-        return file_path
-
-    if not os.path.exists(dir_path):
-        os.makedirs(dir_path)
-
-    return os.path.join(dir_path, file_path)
 
 class PickleWrapWarning(UserWarning):
     pass
 
 
-def hash_array(arr):
+def hash_numpy_array(arr):
     """
     Function written by Claude 3.5 Sonnet
 
@@ -62,11 +42,11 @@ def hash_array(arr):
 
     import numpy as np
 
-    if not arr.flags['C_CONTIGUOUS']:
+    if not arr.flags["C_CONTIGUOUS"]:
         arr = np.ascontiguousarray(arr)
 
     # Create a bytestring containing array metadata and content
-    metadata = f"{arr.shape}_{arr.dtype}".encode('utf-8')
+    metadata = f"{arr.shape}_{arr.dtype}".encode("utf-8")
     content = arr.tobytes()
 
     # Combine metadata and content
@@ -76,20 +56,22 @@ def hash_array(arr):
     return hashlib.sha256(array_bytes).hexdigest()
 
 
-
 def obj2str(val, max_len=16):
     try:
         import numpy as np
     except ModuleNotFoundError:
-        pass
+        np = None
 
-    kwargs_str = ''
-    if isinstance(val, np.ndarray):
+    kwargs_str = ""
+    if np and isinstance(val, np.ndarray):
         if val.size > 9_999_999:
-            warnings.warn(f'Hashing a large ndarray ({val.shape}) to make the filepath, '
-                          f'may add considerable time to filepath generation.',
-                          PickleWrapWarning, stacklevel=2)
-        kwargs_str += hash_array(val)
+            warnings.warn(
+                f"Hashing a large ndarray ({val.shape}) to make the filepath, "
+                f"may add considerable time to filepath generation.",
+                PickleWrapWarning,
+                stacklevel=2,
+            )
+        kwargs_str += hash_numpy_array(val)
         return kwargs_str
     elif isinstance(val, dict):
         for key2 in sorted(val.keys()):
@@ -102,10 +84,13 @@ def obj2str(val, max_len=16):
     else:
         if not isinstance(val, (str, int, float, bool, tuple, type(None))):
             val_type = type(val)
-            warnings.warn(f'Including a {val_type} in the filepath, may create collisions '
-                          f'if not distinct: {str(val)}.',
-                          PickleWrapWarning, stacklevel=2)
-        kwargs_str += f'{val}_'
+            warnings.warn(
+                f"Including a {val_type} in the filepath, may create collisions "
+                f"if not distinct: {str(val)}.",
+                PickleWrapWarning,
+                stacklevel=2,
+            )
+        kwargs_str += f"{val}_"
 
     if len(kwargs_str) > max_len:
         # 16 characters is enough for an under 1e-6 chance of collision among 10M values
@@ -113,44 +98,65 @@ def obj2str(val, max_len=16):
     return kwargs_str
 
 
-def get_cache_fp(f: callable, *args, cache_branches: int=0, **kwargs) -> str:
-    f_name = f.__name__
+def get_parent_file(f: callable) -> Path:
+    return Path(f.__globals__["__file__"])
 
+
+def add_defaults_to_kwargs(f: callable, kwargs: dict) -> dict:
     # updates kwargs to include default values
-    signature = inspect.signature(f) # this should capture functools.partial changes?
+    signature = inspect.signature(f)  # this should capture functools.partial changes?
     for k, v in signature.parameters.items():
-        if v.default is v.empty: continue # exclude args, only want kwargs
-        if k not in kwargs: kwargs[k] = v.default
+        if v.default is v.empty:
+            continue  # exclude args, only want kwargs
 
-    fn = ''
-    for v in args:
-        v_str = obj2str(v)
-        add = f'_{v_str}'
-        fn += add
-    fn = fn[1:]
-    for k, v in sorted(kwargs.items()):
-        v_str = obj2str(v)
-        add = f'_{k[:3]}-{v_str}'
-        fn += add
-    fn += '.pkl'
-    if cache_branches > 0:
-        hash_int = int(hashlib.md5(fn.encode()).hexdigest(), 16)
-        dir_idx = hash_int % cache_branches
-        func_fp = Path(f_name) / str(dir_idx) / fn
-    else:
-        func_fp = Path(f_name) / fn
-    return func_fp
+        if k not in kwargs:
+            kwargs[k] = v.default
+
+    return kwargs
 
 
-def get_cache_key_old(f: callable, *args, **kwargs) -> str:
+def get_args_str(args: tuple) -> str:
+    args_str = ""
+    for arg in args:
+        arg_str = obj2str(arg)
+        args_str += f"_{arg_str}"
+
+    return args_str[1:]
+
+
+def get_kwargs_str(kwargs: dict) -> str:
+    kwargs_str = ""
+    for key, value in sorted(kwargs.items()):
+        value_str = obj2str(value)
+        kwargs_str += f"_{key[:3]}-{value_str}"
+
+    return kwargs_str
+
+
+######
+# MAIN
+######
+
+
+def get_parent_dir(f: callable) -> Path:
+    return get_parent_file(f).parent
+
+
+def get_cache_fp(f: callable, *args, branch_factor: int = 0, **kwargs) -> Path:
+    kwargs = add_defaults_to_kwargs(f, kwargs)
+    cache_key = get_args_str(args) + get_kwargs_str(kwargs)
+
+    f_file = get_parent_file(f).name
     f_name = f.__name__
-    args_str = "_".join(map(str, args))
-    kwargs_str = "_".join(f"{k}={v}" for k, v in sorted(kwargs.items()))
-    combined_str = f"{f_name}_{args_str}_{kwargs_str}"
-    unique_id = hashlib.md5(combined_str.encode()).hexdigest()
-    cache_key = f"{f_name}_{unique_id}"
 
-    return cache_key
+    cache_fp = Path(f_file) / Path(f_name)
+    if branch_factor > 0:
+        hash_int = int(hashlib.md5(cache_key.encode()).hexdigest(), 16)
+        dir_index = hash_int % branch_factor
+        cache_fp /= str(dir_index)
+    cache_fp /= f"{cache_key}.pkl"
+
+    return cache_fp
 
 
 def get_cached_output(path: Union[str, Path]) -> any:

@@ -1,35 +1,41 @@
 # Standard library
 import os
-import pickle
-from functools import cache
 from pathlib import Path
+from functools import cache
+from pickle import UnpicklingError
 from typing import Literal, Optional
 
 # Local
 try:
     from marinate.utils import (
-        get_file_path,
         get_cache_fp,
         get_cached_output,
         cache_output,
         get_logger,
+        get_parent_dir,
     )
 except ImportError:
     from utils import (
-        get_file_path,
         get_cache_fp,
         get_cached_output,
         cache_output,
         get_logger,
+        get_parent_dir,
     )
 
 
+CACHE_DIR = ".picklejar"
 GLOBAL_CACHE_DIR = None
 
 
+######
+# MAIN
+######
+
+
 def set_cache_dir(cache_dir: str):
-    global global_cache_dir
-    global_cache_dir = cache_dir
+    global GLOBAL_CACHE_DIR
+    GLOBAL_CACHE_DIR = cache_dir
 
 
 def marinate(
@@ -38,7 +44,7 @@ def marinate(
     overwrite: bool = False,
     store: Literal["disk", "memory"] = "disk",
     verbose: bool = False,
-    cache_branches: int = 0,
+    branch_factor: int = 100,
 ):
     print_log = get_logger(verbose)
 
@@ -46,49 +52,39 @@ def marinate(
     if store not in {"disk", "memory"}:
         raise ValueError("Invalid value for 'store'. Must be 'disk' or 'memory'.")
 
-    cache_dir = cache_dir or global_cache_dir
-
     def decorator(f: callable):
         def decorated(*args, **kwargs) -> any:
             if store == "memory":
-                print_log(f"Using in-memory cache for {f.__name__}")
+                # TODO: Implement our own in-memory cache using FPs
+                print_log(f"{f.__name__}: Using output cached in-memory")
                 return cache(f)(*args, **kwargs)
 
-            if cache_fp:
-                func_fp = cache_fp
-            else:
-                func_fp = get_cache_fp(f, args, kwargs=kwargs,
-                                       cache_branches=cache_branches)
+            # Build unique file path for function output
+            fn_dir = get_parent_dir(f)  # Directory that f belongs to
+            _cache_dir = Path(cache_dir or GLOBAL_CACHE_DIR or fn_dir / CACHE_DIR)
+            _cache_fp = Path(
+                cache_fp
+                or get_cache_fp(f, args, kwargs=kwargs, branch_factor=branch_factor)
+            )
+            _cache_fp = _cache_dir / _cache_fp
 
-            # I tried the below code but PyCharm says it's bad
-            # if not cache_fp:
-            #     cache_fp = get_cache_fp(f, args, kwargs)
-
-            full_fp = Path(cache_dir) / func_fp
-            if os.path.isfile(full_fp) and not overwrite:
+            # Cached output exists, use it
+            if os.path.isfile(_cache_fp) and not overwrite:
                 try:
-                    print_log(f"Using cached output for {f.__name__} in {full_fp}")
-                    return get_cached_output(full_fp)
-                except (pickle.UnpicklingError, MemoryError, EOFError) as e:
-                    print_log(f"\tRedoing function, error loading cache file {full_fp}: {e}")
+                    print_log(f"{f.__name__}: Using output cached in {_cache_fp}")
+                    return get_cached_output(_cache_fp)
+                except (UnpicklingError, MemoryError, EOFError) as e:
+                    print_log(
+                        f"\tFailed to retrieve cached output. Re-executing function."
+                    )
 
-            full_fp.parent.mkdir(parents=True, exist_ok=True)
-
-
-            # if not cache_dir:
-            #     fn_package = f.__globals__["__file__"]
-
-            # file_path = get_file_path(fn_file, cache_key, cache_file, cache_dir)
-
-            # Use cache if file exists and isn't invalidated
-            # if os.path.isfile(file_path) and not overwrite:
-            #     print_log(f"Using cached output for {f.__name__} in {file_path}")
-            #     return get_cached_output(file_path)
+            # Create cache directory if it doesn't exist
+            _cache_fp.parent.mkdir(parents=True, exist_ok=True)
 
             # Execute function and cache output
             output = f(*args, **kwargs)
-            cache_output(output, full_fp)
-            print_log(f"Cached output for {f.__name__} in {full_fp}")
+            cache_output(output, _cache_fp)
+            print_log(f"{f.__name__}: Cached output in {_cache_fp}")
 
             return output
 
