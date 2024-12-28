@@ -1,7 +1,6 @@
 # Standard library
 import os
 from pathlib import Path
-from functools import cache
 from pickle import UnpicklingError
 from typing import Literal, Optional
 
@@ -47,46 +46,62 @@ def marinate(
     branch_factor: int = 100,
 ):
     print_log = get_logger(verbose)
-
-    # Validate store parameter
-    if store not in {"disk", "memory"}:
-        raise ValueError("Invalid value for 'store'. Must be 'disk' or 'memory'.")
+    memory_cache = {}
 
     def decorator(f: callable):
         def decorated(*args, **kwargs) -> any:
             if store == "memory":
-                # TODO: Implement our own in-memory cache using FPs
-                print_log(f"{f.__name__}: Using output cached in-memory")
-                return cache(f)(*args, **kwargs)
+                # Use file path as cache key
+                cache_key = get_cache_fp(f, args, kwargs=kwargs).name
 
-            # Build unique file path for function output
-            fn_dir = get_parent_dir(f)  # Directory that f belongs to
-            _cache_dir = Path(cache_dir or GLOBAL_CACHE_DIR or fn_dir / CACHE_DIR)
-            _cache_fp = Path(
-                cache_fp
-                or get_cache_fp(f, args, kwargs=kwargs, branch_factor=branch_factor)
-            )
-            _cache_fp = _cache_dir / _cache_fp
+                # Cached output exists, use it
+                if cache_key in memory_cache:
+                    print_log(f"{f.__name__}: Using output cached in-memory")
+                    return memory_cache[cache_key]
 
-            # Cached output exists, use it
-            if os.path.isfile(_cache_fp) and not overwrite:
-                try:
-                    print_log(f"{f.__name__}: Using output cached in {_cache_fp}")
-                    return get_cached_output(_cache_fp)
-                except (UnpicklingError, MemoryError, EOFError) as e:
-                    print_log(
-                        f"\tFailed to retrieve cached output. Re-executing function."
-                    )
+                # Execute function and cache output
+                output = f(*args, **kwargs)
+                memory_cache[cache_key] = output
+                print_log(f"{f.__name__}: Cached output in-memory")
 
-            # Create cache directory if it doesn't exist
-            _cache_fp.parent.mkdir(parents=True, exist_ok=True)
+                return output
+            elif store == "disk":
+                # Build full file path for cached output
+                fn_dir = get_parent_dir(f)
+                full_cache_dir = Path(
+                    cache_dir or GLOBAL_CACHE_DIR or fn_dir / CACHE_DIR
+                )
+                full_cache_fp = Path(
+                    cache_fp
+                    or get_cache_fp(f, args, kwargs=kwargs, branch_factor=branch_factor)
+                )
+                full_cache_fp = full_cache_dir / full_cache_fp
 
-            # Execute function and cache output
-            output = f(*args, **kwargs)
-            cache_output(output, _cache_fp)
-            print_log(f"{f.__name__}: Cached output in {_cache_fp}")
+                # Cached output exists, use it
+                if os.path.isfile(full_cache_fp) and not overwrite:
+                    try:
+                        print_log(
+                            f"{f.__name__}: Using output cached in {full_cache_fp}"
+                        )
+                        return get_cached_output(full_cache_fp)
+                    except (UnpicklingError, MemoryError, EOFError) as e:
+                        print_log(
+                            f"\tFailed to retrieve cached output. Re-executing function."
+                        )
 
-            return output
+                # Create cache directory if it doesn't exist
+                full_cache_fp.parent.mkdir(parents=True, exist_ok=True)
+
+                # Execute function and cache output
+                output = f(*args, **kwargs)
+                cache_output(output, full_cache_fp)
+                print_log(f"{f.__name__}: Cached output in {full_cache_fp}")
+
+                return output
+            else:
+                raise ValueError(
+                    "Invalid value for `store`. Must be 'disk' or 'memory'."
+                )
 
         return decorated
 

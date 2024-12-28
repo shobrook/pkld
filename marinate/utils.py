@@ -146,10 +146,11 @@ def get_cache_fp(f: callable, *args, branch_factor: int = 0, **kwargs) -> Path:
     kwargs = add_defaults_to_kwargs(f, kwargs)
     cache_key = get_args_str(args) + get_kwargs_str(kwargs)
 
-    f_file = get_parent_file(f).name
-    f_name = f.__name__
+    fn_file = get_parent_file(f).name
+    fn_name = f.__name__
 
-    cache_fp = Path(f_file) / Path(f_name)
+    # Build cache file path: <filename_fn_belongs_to>/<fn_name>/<branch_index>/<cache_key>.pkl
+    cache_fp = Path(fn_file) / Path(fn_name)
     if branch_factor > 0:
         hash_int = int(hashlib.md5(cache_key.encode()).hexdigest(), 16)
         dir_index = hash_int % branch_factor
