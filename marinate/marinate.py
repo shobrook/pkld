@@ -41,6 +41,7 @@ def set_cache_dir(cache_dir: str):
 
 
 def marinate(
+    func=None,
     cache_fp: Optional[str] = None,
     cache_dir: Optional[str] = None,
     overwrite: bool = False,
@@ -127,4 +128,7 @@ def marinate(
         decorated.clear = clear_cache
         return decorated
 
-    return decorator
+    if not func:
+        return decorator
+
+    return decorator(func)
