@@ -98,10 +98,6 @@ def obj2str(val, max_len=16):
     return kwargs_str
 
 
-def get_parent_file(f: callable) -> Path:
-    return Path(f.__globals__["__file__"])
-
-
 def add_defaults_to_kwargs(f: callable, kwargs: dict) -> dict:
     # updates kwargs to include default values
     signature = inspect.signature(f)  # this should capture functools.partial changes?
@@ -138,6 +134,10 @@ def get_kwargs_str(kwargs: dict) -> str:
 ######
 
 
+def get_parent_file(f: callable) -> Path:
+    return Path(f.__globals__["__file__"])
+
+
 def get_parent_dir(f: callable) -> Path:
     return get_parent_file(f).parent
 
@@ -146,7 +146,7 @@ def get_cache_fp(f: callable, *args, branch_factor: int = 0, **kwargs) -> Path:
     kwargs = add_defaults_to_kwargs(f, kwargs)
     cache_key = get_args_str(args) + get_kwargs_str(kwargs)
 
-    fn_file = get_parent_file(f).name
+    fn_file = get_parent_file(f).stem
     fn_name = f.__name__
 
     # Build cache file path: <filename_fn_belongs_to>/<fn_name>/<branch_index>/<cache_key>.pkl
