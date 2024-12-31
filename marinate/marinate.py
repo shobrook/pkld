@@ -1,5 +1,6 @@
 # Standard library
 import os
+import time
 from pathlib import Path
 from shutil import rmtree
 from pickle import UnpicklingError
@@ -54,19 +55,28 @@ def marinate(
 
     def decorator(f: callable):
         def decorated(*args, **kwargs) -> any:
+            start = time.time()
+
             if store == "memory":
                 cache_key = f.__name__
                 cache_subkey = get_cache_fp(f, args, kwargs=kwargs).stem
 
                 if cache_key in memory_cache:
                     if cache_subkey in memory_cache[cache_key]:
-                        print_log(f"{f.__name__}: Using output cached in-memory")
-                        return memory_cache[cache_key][cache_subkey]
+                        output = memory_cache[cache_key][cache_subkey]
+                        duration = time.time() - start
+                        print_log(
+                            f"{f.__name__}: Used output cached in-memory (took {duration:.2f}s)"
+                        )
+                        return output
 
                 # Execute function and cache output
                 output = f(*args, **kwargs)
                 memory_cache[cache_key] = output
-                print_log(f"{f.__name__}: Cached output in-memory")
+                duration = time.time() - start
+                print_log(
+                    f"{f.__name__}: Executed and cached output in-memory (took {duration:.2f}s)"
+                )
 
                 return output
             elif store == "disk":
@@ -84,13 +94,15 @@ def marinate(
                 # Cached output exists, use it
                 if os.path.isfile(full_cache_fp) and not overwrite:
                     try:
+                        output = get_cached_output(full_cache_fp)
+                        duration = time.time() - start
                         print_log(
-                            f"{f.__name__}: Using output cached in {full_cache_fp}"
+                            f"{f.__name__}: Using output cached in {full_cache_fp} (took {duration:.2f}s)"
                         )
-                        return get_cached_output(full_cache_fp)
+                        return output
                     except (UnpicklingError, MemoryError, EOFError) as e:
                         print_log(
-                            f"\tFailed to retrieve cached output. Re-executing function."
+                            f"{f.__name__}: Failed to retrieve cached output. Re-executing function."
                         )
 
                 # Create cache directory if it doesn't exist
@@ -99,21 +111,26 @@ def marinate(
                 # Execute function and cache output
                 output = f(*args, **kwargs)
                 cache_output(output, full_cache_fp)
-                print_log(f"{f.__name__}: Cached output in {full_cache_fp}")
+                duration = time.time() - start
+                print_log(
+                    f"{f.__name__}: Executed and cached output in {full_cache_fp} (took {duration:.2f}s)"
+                )
 
                 return output
-            else:
-                raise ValueError(
-                    "Invalid value for `store`. Must be 'disk' or 'memory'."
-                )
+
+            raise ValueError("Invalid value for `store`. Must be 'disk' or 'memory'.")
 
         def clear_cache():
             nonlocal memory_cache
+            start = time.time()
 
             if store == "memory":
                 if f.__name__ in memory_cache:
                     del memory_cache[f.__name__]
-                    print_log(f"{f.__name__}: Cleared in-memory cache")
+                    duration = time.time() - start
+                    print_log(
+                        f"{f.__name__}: Cleared in-memory cache (took {duration:.2f}s)"
+                    )
             elif store == "disk":
                 fn_file = get_parent_file(f).stem
                 fn_dir = get_parent_dir(f)
@@ -123,7 +140,10 @@ def marinate(
                 # Delete the fn_cache directory
                 if fn_cache.exists() and fn_cache.is_dir():
                     rmtree(fn_cache)
-                    print_log(f"{f.__name__}: Cleared disk cache")
+                    duration = time.time() - start
+                    print_log(
+                        f"{f.__name__}: Cleared disk cache (took {duration:.2f}s)"
+                    )
 
         decorated.clear = clear_cache
         return decorated
