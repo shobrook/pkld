@@ -14,6 +14,8 @@ import warnings
 
 
 YELLOW = "\033[93m"
+LIGHT_GRAY = "\033[37m"
+BOLD = "\033[1m"
 RESET = "\033[0m"
 
 
@@ -174,6 +176,6 @@ def cache_output(output: any, path: Union[str, Path]):
 def get_logger(verbose: bool = False) -> callable:
     def log(s: str):
         if verbose:
-            print(f"{YELLOW}marinate | {s}{RESET}")
+            print(f"{YELLOW}{BOLD}[marinate] {RESET}{LIGHT_GRAY}{s}{RESET}")
 
     return log
