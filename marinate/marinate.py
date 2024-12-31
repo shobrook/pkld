@@ -52,8 +52,7 @@ def marinate(
         def decorated(*args, **kwargs) -> any:
             if store == "memory":
                 # Use file path as cache key
-                cache_key = (f.__name__ + '_' +
-                             get_cache_fp(f, args, kwargs=kwargs).name)
+                cache_key = get_cache_fp(f, args, kwargs=kwargs).name
 
                 # Cached output exists, use it
                 if cache_key in memory_cache:
