@@ -16,6 +16,7 @@ try:
         get_cache_dir,
         get_logger,
         get_file_lock,
+        GLOBAL_CACHE_DIR,
     )
 except ImportError:
     from utils import (
@@ -23,6 +24,7 @@ except ImportError:
         get_cache_dir,
         get_logger,
         get_file_lock,
+        GLOBAL_CACHE_DIR,
     )
 
 
