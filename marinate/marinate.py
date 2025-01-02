@@ -1,38 +1,29 @@
 # Standard library
 import os
 import time
+import pickle
+import asyncio
 import threading
 from pathlib import Path
 from shutil import rmtree
-from pickle import UnpicklingError
-from typing import Literal, Optional
-
-# Third-party
-from filelock import FileLock
+from collections import defaultdict
+from typing import Literal, Optional, Tuple
 
 # Local
 try:
     from marinate.utils import (
         get_cache_fp,
-        get_cached_output,
-        cache_output,
+        get_cache_dir,
         get_logger,
-        get_parent_dir,
-        get_parent_file,
+        get_file_lock,
     )
 except ImportError:
     from utils import (
         get_cache_fp,
-        get_cached_output,
-        cache_output,
+        get_cache_dir,
         get_logger,
-        get_parent_dir,
-        get_parent_file,
+        get_file_lock,
     )
-
-
-CACHE_DIR = ".picklejar"
-GLOBAL_CACHE_DIR = None
 
 
 ######
@@ -55,84 +46,129 @@ def marinate(
     branch_factor: int = 0,
 ):
     print_log = get_logger(verbose)
-    memory_cache = {}
+    memory_cache = defaultdict(dict)
     cache_lock = threading.Lock()
 
     def decorator(f: callable):
-        def decorated(*args, **kwargs) -> any:
+        def get_from_memory_cache(args: tuple, kwargs: dict) -> Tuple[any, bool]:
             start = time.time()
 
-            if store == "memory":
-                cache_key = f.__name__
-                cache_subkey = get_cache_fp(f, args, kwargs=kwargs).stem
+            cache_key = f.__name__
+            cache_subkey = get_cache_fp(f, args, kwargs=kwargs).stem
 
-                # Cached output exists, use it
-                with cache_lock:
-                    if cache_key in memory_cache:
-                        if cache_subkey in memory_cache[cache_key]:
-                            output = memory_cache[cache_key][cache_subkey]
-                            duration = time.time() - start
-                            print_log(
-                                f"{f.__name__}: Used output cached in-memory (took {duration:.2f}s)"
-                            )
-                            return output
-
-                # Execute function (outside lock to prevent blocking)
-                output = f(*args, **kwargs)
-
-                # Cache the output
-                with cache_lock:
-                    memory_cache[cache_key] = output
+            with cache_lock:
+                if cache_subkey in memory_cache[cache_key]:
+                    output = memory_cache[cache_key][cache_subkey]
                     duration = time.time() - start
                     print_log(
-                        f"{f.__name__}: Executed and cached output in-memory (took {duration:.2f}s)"
+                        f"{f.__name__}: Used output cached in-memory (took {duration:.2f}s)"
                     )
+                    return output, True
+
+            return None, False
+
+        def add_to_memory_cache(output: any, args: tuple, kwargs: dict):
+            start = time.time()
+
+            cache_key = f.__name__
+            cache_subkey = get_cache_fp(f, args, kwargs=kwargs).stem
+
+            with cache_lock:
+                memory_cache[cache_key][cache_subkey] = output
+                duration = time.time() - start
+                print_log(
+                    f"{f.__name__}: Cached output in-memory (took {duration:.2f}s)"
+                )
+
+        def get_from_disk_cache(cache_fp: Path) -> Tuple[any, bool]:
+            start = time.time()
+            with get_file_lock(cache_fp):
+                # Cached output exists, use it
+                if os.path.isfile(cache_fp) and not overwrite:
+                    try:
+                        with open(str(cache_fp), "rb") as file:
+                            output = pickle.load(file)
+                            duration = time.time() - start
+                            print_log(
+                                f"{f.__name__}: Using output cached in {cache_fp} (took {duration:.2f}s)"
+                            )
+                            return output, True
+                    except (pickle.UnpicklingError, MemoryError, EOFError) as e:
+                        print_log(
+                            f"{f.__name__}: Failed to retrieve cached output. Re-executing function."
+                        )
+
+            return None, False
+
+        def add_to_disk_cache(output: any, cache_fp: Path):
+            start = time.time()
+            with get_file_lock(cache_fp):
+                with open(str(cache_fp), "wb") as file:
+                    pickle.dump(output, file)
+                    duration = time.time() - start
+                    print_log(
+                        f"{f.__name__}: Executed and cached output in {cache_fp} (took {duration:.2f}s)"
+                    )
+
+        async def async_decorated(*args, **kwargs) -> any:
+            if store == "memory":
+                output, is_cached = get_from_memory_cache(args, kwargs)
+                if not is_cached:
+                    output = await f(*args, **kwargs)
+                    add_to_memory_cache(output, args, kwargs)
 
                 return output
             elif store == "disk":
-                # Build full file path for cached output
-                fn_dir = get_parent_dir(f)
-                full_cache_dir = Path(
-                    cache_dir or GLOBAL_CACHE_DIR or fn_dir / CACHE_DIR
+                cache_file_path = get_cache_fp(
+                    f, args, kwargs, cache_dir, cache_fp, branch_factor
                 )
-                full_cache_fp = Path(
-                    cache_fp
-                    or get_cache_fp(f, args, kwargs=kwargs, branch_factor=branch_factor)
-                )
-                full_cache_fp = full_cache_dir / full_cache_fp
+                cache_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-                lock_fp = str(full_cache_fp) + ".lock"
-                lock = FileLock(lock_fp)
-
-                with lock:
-                    # Cached output exists, use it
-                    if os.path.isfile(full_cache_fp) and not overwrite:
-                        try:
-                            output = get_cached_output(full_cache_fp)
-                            duration = time.time() - start
-                            print_log(
-                                f"{f.__name__}: Using output cached in {full_cache_fp} (took {duration:.2f}s)"
-                            )
-                            return output
-                        except (UnpicklingError, MemoryError, EOFError) as e:
-                            print_log(
-                                f"{f.__name__}: Failed to retrieve cached output. Re-executing function."
-                            )
-
-                    # Create cache directory if it doesn't exist
-                    full_cache_fp.parent.mkdir(parents=True, exist_ok=True)
-
-                    # Execute function and cache output
-                    output = f(*args, **kwargs)
-                    cache_output(output, full_cache_fp)
-                    duration = time.time() - start
-                    print_log(
-                        f"{f.__name__}: Executed and cached output in {full_cache_fp} (took {duration:.2f}s)"
-                    )
+                output, is_cached = get_from_disk_cache(cache_file_path)
+                if not is_cached:
+                    output = await f(*args, **kwargs)
+                    add_to_disk_cache(output, cache_file_path)
 
                 return output
+            elif store == "both":
+                pass
 
-            raise ValueError("Invalid value for `store`. Must be 'disk' or 'memory'.")
+            raise ValueError(
+                "Invalid value for `store`. Must be 'disk', 'memory', or 'both'."
+            )
+
+        def sync_decorated(*args, **kwargs) -> any:
+            if store == "memory":
+                output, is_cached = get_from_memory_cache(args, kwargs)
+                if not is_cached:
+                    output = f(*args, **kwargs)
+                    add_to_memory_cache(output, args, kwargs)
+
+                return output
+            elif store == "disk":
+                cache_file_path = get_cache_fp(
+                    f, args, kwargs, cache_dir, cache_fp, branch_factor
+                )
+                cache_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+                output, is_cached = get_from_disk_cache(cache_file_path)
+                if not is_cached:
+                    output = f(*args, **kwargs)
+                    add_to_disk_cache(output, cache_file_path)
+
+                return output
+            elif store == "both":
+                pass
+
+            raise ValueError(
+                "Invalid value for `store`. Must be 'disk', 'memory', or 'both'."
+            )
+
+        def decorated(*args, **kwargs) -> any:
+            if asyncio.iscoroutinefunction(f):
+                return async_decorated(*args, **kwargs)
+
+            return sync_decorated(*args, **kwargs)
 
         def clear_cache():
             nonlocal memory_cache
@@ -147,17 +183,9 @@ def marinate(
                             f"{f.__name__}: Cleared in-memory cache (took {duration:.2f}s)"
                         )
             elif store == "disk":
-                fn_file = get_parent_file(f).stem
-                fn_dir = get_parent_dir(f)
-                fn_cache = Path(cache_dir or GLOBAL_CACHE_DIR or fn_dir / CACHE_DIR)
-                fn_cache /= Path(fn_file) / Path(f.__name__)
-
-                lock_fp = str(fn_cache) + "/.lock"
-                lock = FileLock(lock_fp)
-
-                # Delete the fn_cache directory
-                with lock:
-                    if fn_cache.exists() and fn_cache.is_dir():
+                fn_cache = get_cache_dir(f, cache_dir)
+                with get_file_lock(fn_cache):
+                    if fn_cache.exists():
                         rmtree(fn_cache)
                         duration = time.time() - start
                         print_log(

@@ -7,12 +7,19 @@ from typing import Optional, Union
 import inspect
 import warnings
 
+# Third-party
+from filelock import FileLock
+
 
 #########
 # HELPERS
 #########
 
 
+CACHE_DIR = ".picklejar"
+GLOBAL_CACHE_DIR = None
+
+# ANSI color codes
 YELLOW = "\033[93m"
 LIGHT_GRAY = "\033[37m"
 BOLD = "\033[1m"
@@ -131,11 +138,6 @@ def get_kwargs_str(kwargs: dict) -> str:
     return kwargs_str
 
 
-######
-# MAIN
-######
-
-
 def get_parent_file(f: callable) -> Path:
     return Path(f.__globals__["__file__"])
 
@@ -144,33 +146,56 @@ def get_parent_dir(f: callable) -> Path:
     return get_parent_file(f).parent
 
 
-def get_cache_fp(f: callable, *args, branch_factor: int = 0, **kwargs) -> Path:
+######
+# MAIN
+######
+
+
+def get_cache_dir(f: callable, cache_dir: Optional[str] = None) -> Path:
+    fn_name = f.__name__
+    fn_file = get_parent_file(f).stem
+    fn_dir = get_parent_dir(f)
+    cache_dir = Path(cache_dir or GLOBAL_CACHE_DIR or fn_dir / CACHE_DIR)
+    cache_dir /= Path(fn_file) / Path(fn_name)
+
+    # .../<filename_fn_belongs_to>/<fn_name>/
+
+    return cache_dir
+
+
+def get_cache_fp(
+    f: callable,
+    args,
+    kwargs,
+    cache_dir: Optional[str] = None,
+    cache_fp: Optional[str] = None,
+    branch_factor: int = 0,
+) -> Path:
+    cache_dir = get_cache_dir(f, cache_dir)
+    if cache_fp:
+        return cache_dir / Path(cache_fp)
+
     kwargs = add_defaults_to_kwargs(f, kwargs)
     cache_key = get_args_str(args) + get_kwargs_str(kwargs)
 
-    fn_file = get_parent_file(f).stem
-    fn_name = f.__name__
-
-    # Build cache file path: <filename_fn_belongs_to>/<fn_name>/<branch_index>/<cache_key>.pkl
-    cache_fp = Path(fn_file) / Path(fn_name)
+    cache_fp = cache_dir
     if branch_factor > 0:
         hash_int = int(hashlib.md5(cache_key.encode()).hexdigest(), 16)
         dir_index = hash_int % branch_factor
         cache_fp /= str(dir_index)
-    cache_fp /= f"{cache_key}.pkl"
+    cache_fp /= Path(f"{cache_key}.pkl")
 
     return cache_fp
 
 
-def get_cached_output(path: Union[str, Path]) -> any:
-    with open(path, "rb") as file:
-        output = pickle.load(file)
-        return output
+def get_file_lock(cache_fp: Path) -> FileLock:
+    if cache_fp.is_dir():
+        lock_fp = str(cache_fp / Path("L.lock"))
+    else:
+        lock_fp = str(cache_fp) + ".lock"
 
-
-def cache_output(output: any, path: Union[str, Path]):
-    with open(path, "wb") as file:
-        pickle.dump(output, file)
+    lock = FileLock(lock_fp)
+    return lock
 
 
 def get_logger(verbose: bool = False) -> callable:
