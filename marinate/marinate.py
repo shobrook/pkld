@@ -41,7 +41,7 @@ def marinate(
     cache_fp: Optional[str] = None,
     cache_dir: Optional[str] = None,
     overwrite: bool = False,
-    store: Literal["disk", "memory"] = "disk",
+    store: Literal["disk", "memory", "both"] = "disk",
     verbose: bool = False,
     branch_factor: int = 0,
 ):
@@ -131,7 +131,20 @@ def marinate(
 
                 return output
             elif store == "both":
-                pass
+                output, is_cached = get_from_memory_cache(args, kwargs)
+                if not is_cached:
+                    cache_file_path = get_cache_fp(
+                        f, args, kwargs, cache_dir, cache_fp, branch_factor
+                    )
+                    cache_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    output, is_cached = get_from_disk_cache(cache_file_path)
+                    if not is_cached:
+                        output = await f(*args, **kwargs)
+                        add_to_disk_cache(output, cache_file_path)
+                        add_to_memory_cache(output, args, kwargs)
+
+                return output
 
             raise ValueError(
                 "Invalid value for `store`. Must be 'disk', 'memory', or 'both'."
@@ -158,7 +171,20 @@ def marinate(
 
                 return output
             elif store == "both":
-                pass
+                output, is_cached = get_from_memory_cache(args, kwargs)
+                if not is_cached:
+                    cache_file_path = get_cache_fp(
+                        f, args, kwargs, cache_dir, cache_fp, branch_factor
+                    )
+                    cache_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    output, is_cached = get_from_disk_cache(cache_file_path)
+                    if not is_cached:
+                        output = f(*args, **kwargs)
+                        add_to_disk_cache(output, cache_file_path)
+                        add_to_memory_cache(output, args, kwargs)
+
+                return output
 
             raise ValueError(
                 "Invalid value for `store`. Must be 'disk', 'memory', or 'both'."
