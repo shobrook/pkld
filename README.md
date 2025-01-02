@@ -1,16 +1,20 @@
-# marinate
+TODO: Finish README
 
-`marinate` caches function calls to your disk. This lets you memoize operations across runs of your code. So even if your program terminates, you can run it again without re-invoking slow or expensive functions.
+# pkld
+
+`pkld` (pickled) caches function calls to your disk.
+
+This saves you from recomputing functions every time you run your code. It's especially useful in data processing or machine learning pipelines, where function calls are often expensive or time-consuming.
 
 ```python
-from marinate import marinate
+from pkld import pkld
 
-@marinate
+@pkld
 def my_slow_fn(input):
     # Function that's slow or expensive
 ```
 
-In-memory (transient) caching is also supported.
+`pkld` can also serve as an in-memory (i.e. transient) cache if needed.
 
 **Features:**
 
@@ -23,17 +27,17 @@ In-memory (transient) caching is also supported.
 ## Installation
 
 ```bash
-> pip install marinate
+> pip install pkld
 ```
 
 ## Usage
 
-To marinate a function just add the `@marinate` decorator to it:
+To start, just add the `@pkld` decorator to it:
 
 ```python
-from marinate import marinate
+from pkld import pkld
 
-@marinate
+@pkld
 def my_fn():
     # Does something
 ```
