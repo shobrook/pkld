@@ -2,7 +2,7 @@ TODO: Finish README
 
 # pkld
 
-`pkld` (pickled) caches function calls to your disk.
+`pkld` (pronounced "pickled") caches function calls to your disk.
 
 This saves you from recomputing functions every time you run your code. It's especially useful in data processing or machine learning pipelines, where function calls are often expensive or time-consuming.
 
