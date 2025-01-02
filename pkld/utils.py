@@ -1,11 +1,9 @@
 # Standard library
-import os
-import pickle
 import hashlib
-from pathlib import Path
-from typing import Optional, Union
 import inspect
 import warnings
+from pathlib import Path
+from typing import Optional
 
 # Third-party
 from filelock import FileLock
@@ -201,6 +199,6 @@ def get_file_lock(cache_fp: Path) -> FileLock:
 def get_logger(verbose: bool = False) -> callable:
     def log(s: str):
         if verbose:
-            print(f"{YELLOW}{BOLD}[marinate] {RESET}{LIGHT_GRAY}{s}{RESET}")
+            print(f"{YELLOW}{BOLD}[pkld] {RESET}{LIGHT_GRAY}{s}{RESET}")
 
     return log

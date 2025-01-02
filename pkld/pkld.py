@@ -11,7 +11,7 @@ from typing import Literal, Optional, Tuple
 
 # Local
 try:
-    from marinate.utils import (
+    from pkld.utils import (
         get_cache_fp,
         get_cache_dir,
         get_logger,
@@ -38,7 +38,7 @@ def set_cache_dir(cache_dir: str):
     GLOBAL_CACHE_DIR = cache_dir
 
 
-def marinate(
+def pkld(
     func=None,
     cache_fp: Optional[str] = None,
     cache_dir: Optional[str] = None,
