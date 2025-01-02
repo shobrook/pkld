@@ -1,36 +1,43 @@
-# marinate
+TODO: Finish README
 
-`marinate` caches function calls to your disk. This lets you memoize operations _across runs_ of a program. So even if your program terminates, you can run it again without re-invoking slow or expensive functions.
+# pkld
+
+`pkld` (pronounced "pickled") caches function calls to your disk.
+
+This saves you from recomputing functions every time you run your code. It's especially useful in data processing or machine learning pipelines, where function calls are often expensive or time-consuming.
 
 ```python
-from marinate import marinate
+from pkld import pkld
 
-@marinate
+@pkld
 def my_slow_fn(input):
     # Function that's slow or expensive
 ```
 
+`pkld` can also serve as an in-memory (i.e. transient) cache if needed.
+
 **Features:**
 
+- Uses pickle to store function outputs locally
+- Supports functions with mutable or un-hashable arguments (e.g. dicts, lists, numpy arrays)
 - Thread-safe
 - Supports asynchronous functions
-- Supports in-memory caching in addition to on-disk
-- Uses Python's built-in `pickle` module under the hood
+- Control the cache lifetime and location
 
 ## Installation
 
 ```bash
-> pip install marinate
+> pip install pkld
 ```
 
 ## Usage
 
-To marinate a function just add the `@marinate` decorator to it:
+To start, just add the `@pkld` decorator to it:
 
 ```python
-from marinate import marinate
+from pkld import pkld
 
-@marinate
+@pkld
 def my_fn():
     # Does something
 ```
@@ -91,6 +98,14 @@ Only certain functions can and should be marinated:
 2. Functions _must_ be pure and deterministic. Meaning they should produce the same output given the same input, and should not have side-effects.
 3. Function arguments must be hashable.
 4. Don't marinate functions that take less than a second. The disk I/O overhead will negate the benefits of caching.
+5. Not all methods in classes should be cached.
+
+- Also ignore self when generating cache key
+- Make a global enable_cache and disable_cache function
+- .disable and .enable methods on functions
+- .picklejar instead of .marinade
+- Be careful with mutable inputs.
+- Be careful with side-effects.
 
 ## Authors
 
