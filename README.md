@@ -117,26 +117,25 @@ This is preferred if you only care about memoizing operations _within_ a single 
 
 You can also enable both in-memory and on-disk caching by setting `store="both"`. Loading from a memory cache is faster than a disk cache. So by using both, you can get the speed benefits of in-memory and the persistence benefits of on-disk.
 
-## API
+## Arguments
 
-**pkld()**
+`pkld(cache_fp=None, cache_dir=None, disabled=False, store="disk", verbose=False, branch_factor=0)`
 
-- `cache_fp`
-- `verbose`
+- `cache_fp: str`: File where the cached results will be stored.
+- `cache_dir: str`: Directory where the cached results will be stored.
+- `disabled: bool`: If set to `True`, caching is disabled and the function will execute normally without storing or loading results.
+- `store: "disk" | "memory" | "both"`: Determines the caching method. "disk" for on-disk caching, "memory" for in-memory caching, and "both" for using both methods.
+- `verbose: bool`: If set to `True`, enables logging of cache operations for debugging purposes.
+- `branch_factor: int`: # of subdirectories to group pickle files together in. Useful for functions that are called many times with many different parameters. If a cache directory has too many pickle files in it, you will see performance degradations.
 
 ## Limitations
 
-TODO: Provide examples
+Not all functions can and should be pickled. The requirements are:
 
-Only certain functions can and should be pickled:
-
-1. Functions should not have side-effects.
-2. If function arguments are mutable, they should _not_ be mutated by the function.
-3. Not all methods in classes should be cached.
-4. Don't pickle functions that take less than a second. The disk I/O overhead will negate the benefits of caching. You _can_ use the in-memory cache, though.
-5. Functions that return an unpickleable object, e.g. sockets or database connections, cannot be cached.
-
-<!--6. Functions _must_ be pure and deterministic. Meaning they should produce the same output given the same input, and should not have side-effects.-->
+1. Functions cannot have side-effects. This means they cannot mutate objects defined outside of the function (including its arguments).
+2. Functions cannot return an unpickleable object, e.g. a socket or database connection.
+3. Functions must be deterministic. Meaning they should _always_ produce the same output given the same input.
+4. If you're passing an instance of a user-defined class as a function input, it must have a `__hash__` method defined on it.
 
 ## Authors
 

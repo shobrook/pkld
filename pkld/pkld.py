@@ -38,6 +38,7 @@ def set_cache_dir(cache_dir: str):
     GLOBAL_CACHE_DIR = cache_dir
 
 
+# TODO: branching should be automatic, no factor needed
 def pkld(
     func=None,
     cache_fp: Optional[str] = None,
