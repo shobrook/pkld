@@ -1,8 +1,8 @@
 # pkld
 
-`pkld` (pronounced "pickled") caches function calls to your disk.
+`pkld` (pickled) caches function calls to your disk.
 
-This saves you from repeating the same function calls every time you run your code. It's especially useful in data engineering or machine learning pipelines, where function calls are often expensive or time-consuming.
+This saves you from re-executing the same function calls every time you run your code. It's especially useful in data engineering or machine learning pipelines, where function calls are usually expensive or time-consuming.
 
 ```python
 from pkld import pkld
@@ -13,11 +13,12 @@ def foo(input):
     return stuff
 ```
 
-**Features:**
+## Highlights
 
+- Super easy to use, it's just a function decorator
 - Uses [pickle](https://docs.python.org/3/library/pickle.html) to store function outputs locally
+- Can also be used as an in-memory (i.e. transient) cache
 - Supports functions with mutable or un-hashable arguments (e.g. dicts, lists, numpy arrays)
-- Can also be used as an **in-memory (i.e. transient) cache**
 - Supports asynchronous functions
 - Thread-safe
 
@@ -29,26 +30,26 @@ def foo(input):
 
 ## Usage
 
-To use, just add the `@pkld` decorator to your function:
+To use, just add the `@pkld` decorator to the function you want to cache:
 
 ```python
 from pkld import pkld
 
 @pkld
-def foo():
+def foo(input):
     return stuff
 ```
 
 Then if you run the program, the function will be executed:
 
 ```python
-stuff = foo() # Takes a long time
+stuff = foo(123) # Takes a long time
 ```
 
 And if you run it again:
 
 ```python
-stuff = foo() # Fast af
+stuff = foo(123) # Fast af
 ```
 
 The function will _not_ execute, and instead the output will be pulled from the cache.
@@ -67,7 +68,7 @@ You can disable caching for a pickled function using the `disabled` parameter:
 
 ```python
 @pkld(disabled=True)
-def foo():
+def foo(input):
     return stuff
 ```
 
@@ -91,7 +92,7 @@ However, you can change this by setting the `cache_dir` parameter:
 
 ```python
 @pkld(cache_dir="~/my_cache_dir")
-def foo():
+def foo(input):
     return stuff
 ```
 
@@ -109,7 +110,7 @@ set_cache_dir("~/my_cache_dir")
 
 ```python
 @pkld(store="memory")
-def foo():
+def foo(input):
     return stuff # Output will be loaded/stored in memory
 ```
 
