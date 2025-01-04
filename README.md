@@ -120,14 +120,13 @@ You can also enable both in-memory and on-disk caching by setting `store="both"`
 
 ## Arguments
 
-`pkld(cache_fp=None, cache_dir=None, disabled=False, store="disk", verbose=False, branch_factor=0)`
+`pkld(cache_fp=None, cache_dir=None, disabled=False, store="disk", verbose=False)`
 
 - `cache_fp: str`: File where the cached results will be stored; overrides the automatically generated filepath.
 - `cache_dir: str`: Directory where the cached results will be stored; overrides the automatically generated directory.
 - `disabled: bool`: If set to `True`, caching is disabled and the function will execute normally without storing or loading results.
 - `store: "disk" | "memory" | "both"`: Determines the caching method. "disk" for on-disk caching, "memory" for in-memory caching, and "both" for using both methods.
 - `verbose: bool`: If set to `True`, enables logging of cache operations for debugging purposes.
-- `branch_factor: int`: number of subdirectories to group pickle files together in. If you are running same function under 10,000+ different parameters, you may see performance improvements from setting branch_factor to `100` or so.
 
 
 ## Limitations

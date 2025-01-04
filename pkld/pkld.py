@@ -39,7 +39,6 @@ def set_cache_dir(cache_dir: str):
     GLOBAL_CACHE_DIR = cache_dir
 
 
-# TODO: branching should be automatic, no factor needed
 def pkld(
     func=None,
     cache_fp: Optional[str] = None,
@@ -47,7 +46,6 @@ def pkld(
     disabled: bool = False,
     store: Literal["disk", "memory", "both"] = "disk",
     verbose: bool = False,
-    branch_factor: int = 0,
 ):
     print_log = get_logger(verbose)
     memory_cache = defaultdict(dict)
@@ -137,7 +135,7 @@ def pkld(
                 return output
             elif store == "disk":
                 cache_file_path = get_cache_fp(
-                    f, args, kwargs, cache_dir, cache_fp, branch_factor
+                    f, args, kwargs, cache_dir, cache_fp
                 )
                 cache_file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -151,7 +149,7 @@ def pkld(
                 output, is_cached = get_from_memory_cache(args, kwargs)
                 if not is_cached:
                     cache_file_path = get_cache_fp(
-                        f, args, kwargs, cache_dir, cache_fp, branch_factor
+                        f, args, kwargs, cache_dir, cache_fp
                     )
                     cache_file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -190,7 +188,7 @@ def pkld(
                 return output
             elif store == "disk":
                 cache_file_path = get_cache_fp(
-                    f, args, kwargs, cache_dir, cache_fp, branch_factor
+                    f, args, kwargs, cache_dir, cache_fp
                 )
                 cache_file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -204,7 +202,7 @@ def pkld(
                 output, is_cached = get_from_memory_cache(args, kwargs)
                 if not is_cached:
                     cache_file_path = get_cache_fp(
-                        f, args, kwargs, cache_dir, cache_fp, branch_factor
+                        f, args, kwargs, cache_dir, cache_fp
                     )
                     cache_file_path.parent.mkdir(parents=True, exist_ok=True)
 
