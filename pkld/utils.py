@@ -4,6 +4,7 @@ import inspect
 import warnings
 from pathlib import Path
 from typing import Optional
+from inspect import Parameter
 
 # Third-party
 from filelock import FileLock
@@ -26,6 +27,35 @@ RESET = "\033[0m"
 
 class PickleWrapWarning(UserWarning):
     pass
+
+
+def process_signature(f, args):
+    """
+    Process function signature and arguments, handling *args parameters correctly.
+
+    Args:
+        f: The function to analyze
+        args: Tuple of positional arguments passed to the function
+
+    Returns:
+        dict: Mapping of parameter names to argument values
+    """
+    sig = inspect.signature(f)
+    arg_kwargs = {}
+    args_iter = iter(args)
+
+    # First pass: identify regular params and VAR_POSITIONAL
+    for name, param in sig.parameters.items():
+        if param.kind == Parameter.VAR_POSITIONAL:
+            break
+        elif param.kind in (Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD):
+            try:
+                arg_kwargs[name] = next(args_iter)
+            except StopIteration:
+                # No more arguments available
+                break
+
+    return arg_kwargs, args_iter
 
 
 def hash_numpy_array(arr):

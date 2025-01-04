@@ -17,8 +17,9 @@ try:
         get_cache_dir,
         get_logger,
         get_file_lock,
+        process_signature,
         GLOBAL_CACHE_DIR,
-    )
+)
 except ImportError:
     from utils import (
         get_cache_fp,
@@ -113,18 +114,13 @@ def pkld(
                     )
 
         async def async_decorated(*args, **kwargs) -> any:
-            sig = inspect.signature(f)
-            param_names = list(sig.parameters.keys())
-            # Convert positional args to kwargs
-            arg_kwargs = {
-                param_names[i]: arg
-                for i, arg in enumerate(args)
-            }
+            arg_kwargs, args_iter = process_signature(f, args)
             overlap = set(arg_kwargs.keys()) & set(kwargs.keys())
             assert len(overlap) == 0, \
-                f'args and kwargs have overlapping keys: {overlap}'
+                (f'args and kwargs have overlapping keys: overlap: {overlap} | '
+                 f'args: {arg_kwargs.keys()}, kwargs: {kwargs.keys()}')
             kwargs = {**arg_kwargs, **kwargs}
-            args = tuple()
+            args = tuple(args_iter)
 
             if store == "memory":
                 output, is_cached = get_from_memory_cache(args, kwargs)
@@ -166,18 +162,13 @@ def pkld(
             )
 
         def sync_decorated(*args, **kwargs) -> any:
-            sig = inspect.signature(f)
-            param_names = list(sig.parameters.keys())
-            # Convert positional args to kwargs
-            arg_kwargs = {
-                param_names[i]: arg
-                for i, arg in enumerate(args)
-            }
+            arg_kwargs, args_iter = process_signature(f, args)
             overlap = set(arg_kwargs.keys()) & set(kwargs.keys())
             assert len(overlap) == 0, \
-                f'args and kwargs have overlapping keys: {overlap}'
+                (f'args and kwargs have overlapping keys: overlap: {overlap} | '
+                 f'args: {arg_kwargs.keys()}, kwargs: {kwargs.keys()}')
             kwargs = {**arg_kwargs, **kwargs}
-            args = tuple()
+            args = tuple(args_iter)
 
             if store == "memory":
                 output, is_cached = get_from_memory_cache(args, kwargs)
