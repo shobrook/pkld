@@ -38,11 +38,12 @@ def set_cache_dir(cache_dir: str):
     GLOBAL_CACHE_DIR = cache_dir
 
 
+# TODO: branching should be automatic, no factor needed
 def pkld(
     func=None,
     cache_fp: Optional[str] = None,
     cache_dir: Optional[str] = None,
-    overwrite: bool = False,
+    disabled: bool = False,
     store: Literal["disk", "memory", "both"] = "disk",
     verbose: bool = False,
     branch_factor: int = 0,
@@ -59,7 +60,7 @@ def pkld(
             cache_subkey = get_cache_fp(f, args, kwargs=kwargs).stem
 
             with cache_lock:
-                if cache_subkey in memory_cache[cache_key]:
+                if cache_subkey in memory_cache[cache_key] and not disabled:
                     output = memory_cache[cache_key][cache_subkey]
                     duration = time.time() - start
                     print_log(
@@ -86,7 +87,7 @@ def pkld(
             start = time.time()
             with get_file_lock(cache_fp):
                 # Cached output exists, use it
-                if os.path.isfile(cache_fp) and not overwrite:
+                if os.path.isfile(cache_fp) and not disabled:
                     try:
                         with open(str(cache_fp), "rb") as file:
                             output = pickle.load(file)
@@ -198,27 +199,38 @@ def pkld(
 
             return sync_decorated(*args, **kwargs)
 
+        def clear_memory_cache():
+            with cache_lock:
+                if f.__name__ in memory_cache:
+                    del memory_cache[f.__name__]
+
+        def clear_disk_cache():
+            fn_cache = get_cache_dir(f, cache_dir)
+            with get_file_lock(fn_cache):
+                if fn_cache.exists():
+                    rmtree(fn_cache)
+
         def clear_cache():
             nonlocal memory_cache
             start = time.time()
 
             if store == "memory":
-                with cache_lock:
-                    if f.__name__ in memory_cache:
-                        del memory_cache[f.__name__]
-                        duration = time.time() - start
-                        print_log(
-                            f"{f.__name__}: Cleared in-memory cache (took {duration:.2f}s)"
-                        )
+                clear_memory_cache()
+                duration = time.time() - start
+                print_log(
+                    f"{f.__name__}: Cleared in-memory cache (took {duration:.2f}s)"
+                )
             elif store == "disk":
-                fn_cache = get_cache_dir(f, cache_dir)
-                with get_file_lock(fn_cache):
-                    if fn_cache.exists():
-                        rmtree(fn_cache)
-                        duration = time.time() - start
-                        print_log(
-                            f"{f.__name__}: Cleared disk cache (took {duration:.2f}s)"
-                        )
+                clear_disk_cache()
+                duration = time.time() - start
+                print_log(f"{f.__name__}: Cleared disk cache (took {duration:.2f}s)")
+            elif store == "both":
+                clear_memory_cache()
+                clear_disk_cache()
+                duration = time.time() - start
+                print_log(
+                    f"{f.__name__}: Cleared in-memory and disk cache (took {duration:.2f}s)"
+                )
 
         decorated.clear = clear_cache
         return decorated

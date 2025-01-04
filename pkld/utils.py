@@ -14,7 +14,7 @@ from filelock import FileLock
 #########
 
 
-CACHE_DIR = ".picklejar"
+CACHE_DIR = ".pkljar"
 GLOBAL_CACHE_DIR = None
 
 # ANSI color codes

@@ -18,7 +18,7 @@ setup(
     description="Persistent caching for Python functions",
     long_description=readme,
     long_description_content_type="text/markdown",
-    version="v1.0.1",
+    version="v1.0.2",
     packages=find_packages(),
     python_requires=">=3",
     url="https://github.com/shobrook/pkld",
