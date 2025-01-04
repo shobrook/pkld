@@ -1,8 +1,8 @@
 # pkld
 
-`pkld` (pickled) caches function calls to your disk.
+`pkld` (pickled) caches function calls to your disk. 
 
-This saves you from re-executing the same function calls every time you run your code. It's especially useful in data engineering or machine learning pipelines, where function calls are usually expensive or time-consuming.
+This saves you from re-executing the same function calls every time you run your code. It's especially useful in any data analysis pipelines where function calls are usually expensive or time-consuming.
 
 ```python
 from pkld import pkld
@@ -15,10 +15,10 @@ def foo(input):
 
 ## Highlights
 
-- Super easy to use, it's just a function decorator
+- Easy to use, it's just a function decorator
 - Uses [pickle](https://docs.python.org/3/library/pickle.html) to store function outputs locally
 - Can also be used as an in-memory (i.e. transient) cache
-- Supports functions with mutable or un-hashable arguments (e.g. dicts, lists, numpy arrays)
+- Supports functions with mutable or un-hashable arguments (dicts, lists, numpy arrays)
 - Supports asynchronous functions
 - Thread-safe
 
@@ -40,16 +40,16 @@ def foo(input):
     return stuff
 ```
 
-Then if you run the program, the function will be executed:
+The first time you run the program, the `pkld` function will be executed and the output will be saved:
 
 ```python
 stuff = foo(123) # Takes a long time
 ```
 
-And if you run it again:
+And if you run it again (within the same Python session or a new one):
 
 ```python
-stuff = foo(123) # Fast af
+stuff = foo(123) # Now fast
 ```
 
 The function will _not_ execute, and instead the output will be pulled from the cache.
@@ -122,21 +122,21 @@ You can also enable both in-memory and on-disk caching by setting `store="both"`
 
 `pkld(cache_fp=None, cache_dir=None, disabled=False, store="disk", verbose=False, branch_factor=0)`
 
-- `cache_fp: str`: File where the cached results will be stored.
-- `cache_dir: str`: Directory where the cached results will be stored.
+- `cache_fp: str`: File where the cached results will be stored; overrides the automatically generated filepath.
+- `cache_dir: str`: Directory where the cached results will be stored; overrides the automatically generated directory.
 - `disabled: bool`: If set to `True`, caching is disabled and the function will execute normally without storing or loading results.
 - `store: "disk" | "memory" | "both"`: Determines the caching method. "disk" for on-disk caching, "memory" for in-memory caching, and "both" for using both methods.
 - `verbose: bool`: If set to `True`, enables logging of cache operations for debugging purposes.
-- `branch_factor: int`: # of subdirectories to group pickle files together in. Useful for functions that are called many times with many different parameters. If a cache directory has too many pickle files in it, you will see performance degradations.
+- `branch_factor: int`: number of subdirectories to group pickle files together in. If you are running same function under 10,000+ different parameters, you may see performance improvements from setting branch_factor to `100` or so.
+
 
 ## Limitations
 
-Not all functions can and should be pickled. The requirements are:
+There are some contexts where you may not want to use `pkld`:
 
-1. Functions cannot have side-effects. This means they cannot mutate objects defined outside of the function (including its arguments).
-2. Functions cannot return an unpickleable object, e.g. a socket or database connection.
-3. Functions must be deterministic. Meaning they should _always_ produce the same output given the same input.
-4. If you're passing an instance of a user-defined class as a function input, it must have a `__hash__` method defined on it.
+1. Only returned values are cached and any of a function's side-effects will not be captured
+2. You should not use this for functions that cannot return an unpickleable object, e.g. a socket or database connection
+3. If you are passing an instance of user-defined class as a function input, a `__hash__` method should be defined to avoid filepath collisions
 
 ## Authors
 

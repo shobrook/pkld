@@ -4,6 +4,7 @@ import time
 import pickle
 import asyncio
 import threading
+import inspect
 from pathlib import Path
 from shutil import rmtree
 from collections import defaultdict
@@ -114,6 +115,19 @@ def pkld(
                     )
 
         async def async_decorated(*args, **kwargs) -> any:
+            sig = inspect.signature(f)
+            param_names = list(sig.parameters.keys())
+            # Convert positional args to kwargs
+            arg_kwargs = {
+                param_names[i]: arg
+                for i, arg in enumerate(args)
+            }
+            overlap = set(arg_kwargs.keys()) & set(kwargs.keys())
+            assert len(overlap) == 0, \
+                f'args and kwargs have overlapping keys: {overlap}'
+            kwargs = {**arg_kwargs, **kwargs}
+            args = tuple()
+
             if store == "memory":
                 output, is_cached = get_from_memory_cache(args, kwargs)
                 if not is_cached:
@@ -154,6 +168,19 @@ def pkld(
             )
 
         def sync_decorated(*args, **kwargs) -> any:
+            sig = inspect.signature(f)
+            param_names = list(sig.parameters.keys())
+            # Convert positional args to kwargs
+            arg_kwargs = {
+                param_names[i]: arg
+                for i, arg in enumerate(args)
+            }
+            overlap = set(arg_kwargs.keys()) & set(kwargs.keys())
+            assert len(overlap) == 0, \
+                f'args and kwargs have overlapping keys: {overlap}'
+            kwargs = {**arg_kwargs, **kwargs}
+            args = tuple()
+
             if store == "memory":
                 output, is_cached = get_from_memory_cache(args, kwargs)
                 if not is_cached:
