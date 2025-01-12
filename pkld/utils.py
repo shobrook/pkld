@@ -4,6 +4,7 @@ import inspect
 import warnings
 from pathlib import Path
 from typing import Optional
+from inspect import Parameter
 
 # Third-party
 from filelock import FileLock
@@ -26,6 +27,35 @@ RESET = "\033[0m"
 
 class PickleWrapWarning(UserWarning):
     pass
+
+
+def process_signature(f, args):
+    """
+    Process function signature and arguments, handling *args parameters correctly.
+
+    Args:
+        f: The function to analyze
+        args: Tuple of positional arguments passed to the function
+
+    Returns:
+        dict: Mapping of parameter names to argument values
+    """
+    sig = inspect.signature(f)
+    arg_kwargs = {}
+    args_iter = iter(args)
+
+    # First pass: identify regular params and VAR_POSITIONAL
+    for name, param in sig.parameters.items():
+        if param.kind == Parameter.VAR_POSITIONAL:
+            break
+        elif param.kind in (Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD):
+            try:
+                arg_kwargs[name] = next(args_iter)
+            except StopIteration:
+                # No more arguments available
+                break
+
+    return arg_kwargs, args_iter
 
 
 def hash_numpy_array(arr):
@@ -167,7 +197,6 @@ def get_cache_fp(
     kwargs,
     cache_dir: Optional[str] = None,
     cache_fp: Optional[str] = None,
-    branch_factor: int = 0,
 ) -> Path:
     cache_dir = get_cache_dir(f, cache_dir)
     if cache_fp:
@@ -177,10 +206,6 @@ def get_cache_fp(
     cache_key = get_args_str(args) + get_kwargs_str(kwargs)
 
     cache_fp = cache_dir
-    if branch_factor > 0:
-        hash_int = int(hashlib.md5(cache_key.encode()).hexdigest(), 16)
-        dir_index = hash_int % branch_factor
-        cache_fp /= str(dir_index)
     cache_fp /= Path(f"{cache_key}.pkl")
 
     return cache_fp

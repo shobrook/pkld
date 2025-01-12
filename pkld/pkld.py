@@ -4,6 +4,7 @@ import time
 import pickle
 import asyncio
 import threading
+import inspect
 from pathlib import Path
 from shutil import rmtree
 from collections import defaultdict
@@ -16,8 +17,9 @@ try:
         get_cache_dir,
         get_logger,
         get_file_lock,
+        process_signature,
         GLOBAL_CACHE_DIR,
-    )
+)
 except ImportError:
     from utils import (
         get_cache_fp,
@@ -38,7 +40,6 @@ def set_cache_dir(cache_dir: str):
     GLOBAL_CACHE_DIR = cache_dir
 
 
-# TODO: branching should be automatic, no factor needed
 def pkld(
     func=None,
     cache_fp: Optional[str] = None,
@@ -46,7 +47,6 @@ def pkld(
     disabled: bool = False,
     store: Literal["disk", "memory", "both"] = "disk",
     verbose: bool = False,
-    branch_factor: int = 0,
 ):
     print_log = get_logger(verbose)
     memory_cache = defaultdict(dict)
@@ -114,6 +114,14 @@ def pkld(
                     )
 
         async def async_decorated(*args, **kwargs) -> any:
+            arg_kwargs, args_iter = process_signature(f, args)
+            overlap = set(arg_kwargs.keys()) & set(kwargs.keys())
+            assert len(overlap) == 0, \
+                (f'args and kwargs have overlapping keys: overlap: {overlap} | '
+                 f'args: {arg_kwargs.keys()}, kwargs: {kwargs.keys()}')
+            kwargs = {**arg_kwargs, **kwargs}
+            args = tuple(args_iter)
+
             if store == "memory":
                 output, is_cached = get_from_memory_cache(args, kwargs)
                 if not is_cached:
@@ -123,7 +131,7 @@ def pkld(
                 return output
             elif store == "disk":
                 cache_file_path = get_cache_fp(
-                    f, args, kwargs, cache_dir, cache_fp, branch_factor
+                    f, args, kwargs, cache_dir, cache_fp
                 )
                 cache_file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -137,7 +145,7 @@ def pkld(
                 output, is_cached = get_from_memory_cache(args, kwargs)
                 if not is_cached:
                     cache_file_path = get_cache_fp(
-                        f, args, kwargs, cache_dir, cache_fp, branch_factor
+                        f, args, kwargs, cache_dir, cache_fp
                     )
                     cache_file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -154,6 +162,14 @@ def pkld(
             )
 
         def sync_decorated(*args, **kwargs) -> any:
+            arg_kwargs, args_iter = process_signature(f, args)
+            overlap = set(arg_kwargs.keys()) & set(kwargs.keys())
+            assert len(overlap) == 0, \
+                (f'args and kwargs have overlapping keys: overlap: {overlap} | '
+                 f'args: {arg_kwargs.keys()}, kwargs: {kwargs.keys()}')
+            kwargs = {**arg_kwargs, **kwargs}
+            args = tuple(args_iter)
+
             if store == "memory":
                 output, is_cached = get_from_memory_cache(args, kwargs)
                 if not is_cached:
@@ -163,7 +179,7 @@ def pkld(
                 return output
             elif store == "disk":
                 cache_file_path = get_cache_fp(
-                    f, args, kwargs, cache_dir, cache_fp, branch_factor
+                    f, args, kwargs, cache_dir, cache_fp
                 )
                 cache_file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -177,7 +193,7 @@ def pkld(
                 output, is_cached = get_from_memory_cache(args, kwargs)
                 if not is_cached:
                     cache_file_path = get_cache_fp(
-                        f, args, kwargs, cache_dir, cache_fp, branch_factor
+                        f, args, kwargs, cache_dir, cache_fp
                     )
                     cache_file_path.parent.mkdir(parents=True, exist_ok=True)
 
