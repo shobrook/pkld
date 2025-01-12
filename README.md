@@ -2,7 +2,7 @@
 
 `pkld` (pickled) caches function calls to your disk. 
 
-This saves you from re-executing the same function calls every time you run your code. It's especially useful in any data analysis pipelines where function calls are usually expensive or time-consuming.
+This saves you from re-executing the same function calls every time you run your code. It's especially useful in data analysis or machine learning pipelines where function calls are usually expensive or time-consuming.
 
 ```python
 from pkld import pkld
