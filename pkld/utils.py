@@ -197,6 +197,7 @@ def get_cache_fp(
     kwargs,
     cache_dir: Optional[str] = None,
     cache_fp: Optional[str] = None,
+    max_fn_len: int = 128,
 ) -> Path:
     cache_dir = get_cache_dir(f, cache_dir)
     if cache_fp:
@@ -204,6 +205,8 @@ def get_cache_fp(
 
     kwargs = add_defaults_to_kwargs(f, kwargs)
     cache_key = get_args_str(args) + get_kwargs_str(kwargs)
+    if len(cache_key) > max_fn_len:
+        cache_key = hashlib.md5(cache_key.encode()).hexdigest()[:max_fn_len]
 
     cache_fp = cache_dir
     cache_fp /= Path(f"{cache_key}.pkl")

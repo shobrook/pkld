@@ -47,9 +47,12 @@ def pkld(
     disabled: bool = False,
     store: Literal["disk", "memory", "both"] = "disk",
     verbose: bool = False,
+    overwrite: bool = False,
+    max_fn_len: int = 128,
 ):
     print_log = get_logger(verbose)
     memory_cache = defaultdict(dict)
+    overwrite_semi_cache = defaultdict(set)
     cache_lock = threading.Lock()
 
     def decorator(f: callable):
@@ -57,7 +60,7 @@ def pkld(
             start = time.time()
 
             cache_key = f.__name__
-            cache_subkey = get_cache_fp(f, args, kwargs=kwargs).stem
+            cache_subkey = get_cache_fp(f, args, max_fn_len=max_fn_len, kwargs=kwargs).stem
 
             with cache_lock:
                 if cache_subkey in memory_cache[cache_key] and not disabled:
@@ -74,7 +77,7 @@ def pkld(
             start = time.time()
 
             cache_key = f.__name__
-            cache_subkey = get_cache_fp(f, args, kwargs=kwargs).stem
+            cache_subkey = get_cache_fp(f, args, max_fn_len=max_fn_len, kwargs=kwargs).stem
 
             with cache_lock:
                 memory_cache[cache_key][cache_subkey] = output
@@ -82,6 +85,16 @@ def pkld(
                 print_log(
                     f"{f.__name__}: Cached output in-memory (took {duration:.2f}s)"
                 )
+
+        def add_to_overwrite_checker(args: tuple, kwargs: dict):
+            cache_key = f.__name__
+            cache_subkey = get_cache_fp(f, args, max_fn_len=max_fn_len, kwargs=kwargs).stem
+            overwrite_semi_cache[cache_key].add(cache_subkey)
+
+        def was_not_run_this_instance(args: tuple, kwargs: dict):
+            cache_key = f.__name__
+            cache_subkey = get_cache_fp(f, args, max_fn_len=max_fn_len, kwargs=kwargs).stem
+            return cache_subkey not in overwrite_semi_cache[cache_key]
 
         def get_from_disk_cache(cache_fp: Path) -> Tuple[any, bool]:
             start = time.time()
@@ -131,7 +144,7 @@ def pkld(
                 return output
             elif store == "disk":
                 cache_file_path = get_cache_fp(
-                    f, args, kwargs, cache_dir, cache_fp
+                    f, args, kwargs, cache_dir, cache_fp, max_fn_len=max_fn_len
                 )
                 cache_file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -145,7 +158,7 @@ def pkld(
                 output, is_cached = get_from_memory_cache(args, kwargs)
                 if not is_cached:
                     cache_file_path = get_cache_fp(
-                        f, args, kwargs, cache_dir, cache_fp
+                        f, args, kwargs, cache_dir, cache_fp, max_fn_len=max_fn_len
                     )
                     cache_file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -172,37 +185,49 @@ def pkld(
 
             if store == "memory":
                 output, is_cached = get_from_memory_cache(args, kwargs)
+
                 if not is_cached:
                     output = f(*args, **kwargs)
                     add_to_memory_cache(output, args, kwargs)
-
                 return output
             elif store == "disk":
                 cache_file_path = get_cache_fp(
-                    f, args, kwargs, cache_dir, cache_fp
+                    f, args, kwargs, cache_dir, cache_fp, max_fn_len=max_fn_len
                 )
                 cache_file_path.parent.mkdir(parents=True, exist_ok=True)
+                cache_file_path = Path(str(cache_file_path).replace('?', ''))
 
-                output, is_cached = get_from_disk_cache(cache_file_path)
-                if not is_cached:
+                # output, is_cached = get_from_disk_cache(cache_file_path)
+
+                if overwrite and was_not_run_this_instance(args, kwargs):
                     output = f(*args, **kwargs)
                     add_to_disk_cache(output, cache_file_path)
+                    add_to_overwrite_checker(args, kwargs)
+                else:
+                    output, is_cached = get_from_disk_cache(cache_file_path)
+                    if not is_cached:
+                        output = f(*args, **kwargs)
+                        add_to_disk_cache(output, cache_file_path)
 
                 return output
             elif store == "both":
                 output, is_cached = get_from_memory_cache(args, kwargs)
                 if not is_cached:
                     cache_file_path = get_cache_fp(
-                        f, args, kwargs, cache_dir, cache_fp
+                        f, args, kwargs, cache_dir, cache_fp, max_fn_len=max_fn_len
                     )
                     cache_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-                    output, is_cached = get_from_disk_cache(cache_file_path)
-                    if not is_cached:
+                    if overwrite and was_not_run_this_instance(args, kwargs):
                         output = f(*args, **kwargs)
                         add_to_disk_cache(output, cache_file_path)
+                        add_to_overwrite_checker(args, kwargs)
+                    else:
+                        output, is_cached = get_from_disk_cache(cache_file_path)
+                        if not is_cached:
+                            output = f(*args, **kwargs)
+                            add_to_disk_cache(output, cache_file_path)
                         add_to_memory_cache(output, args, kwargs)
-
                 return output
 
             raise ValueError(
